@@ -25,7 +25,7 @@
 ##Installation
 
 ```
-git clone 
+git clone https://github.com/19seniman/ekox-holeskey-testnet.git
 ```
 ```
 cd ekox-holeskey-testnet
