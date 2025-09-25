@@ -21,3 +21,27 @@
 ✅ Done
 
 📕 Detail Guide : http://ekox.medium.com/ekox-testnet-guideline-67e087d91d02
+
+##Installation
+
+```
+git clone 
+```
+```
+cd ekox-holeskey-testnet
+```
+```
+npm init -y
+```
+```
+npm install dotenv
+npm install ethers
+```
+```
+nano .env
+```
+```
+~ Run The Scripts 
+```
+nosde lim .js
+```
