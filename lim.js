@@ -16,9 +16,9 @@ const colors = {
     red: "\x1b[31m",
     white: "\x1b[37m",
     bold: "\x1b[1m",
-    blue: "\x1b[34m", 
-    magenta: "\x1b[35m", 
-    gray: "\x1b[90m", 
+    blue: "\x1b[34m",
+    magenta: "\x1b[35m",
+    gray: "\x1b[90m",
 };
 
 const logger = {
@@ -167,8 +167,6 @@ async function doWithdraw(wallet, amountExEth, times) {
     for (let i = 1; i <= times; i++) {
         logger.step(`Withdraw ${i}/${times} for ${wallet.address} ...`);
 
-        // Tidak perlu cek balance di sini, biarkan transaksi gagal jika insufficient balance
-        // karena check allowance ada di dalam ensureAllowance
         await ensureAllowance(ex, wallet.address, ADDR.WITHDRAW, amountWei);
 
         logger.loading(`Calling withdraw(${amountExEth} exETH, WETH) ...`);
@@ -199,6 +197,18 @@ async function doClaim(wallet, attempts) {
     }
 }
 
+// Fungsi utama untuk menjalankan deposit terjadwal
+const runDepositTask = async (wallets, amountStr, times) => {
+    logger.section(`DAILY DEPOSIT RUN: ${new Date().toLocaleString()}`);
+    for (const wallet of wallets) {
+        console.log();
+        logger.info(`--- Deposit for ${wallet.address} ---`);
+        await doDeposit(wallet, amountStr, times);
+    }
+    logger.summary(`Deposit run completed. Waiting 24 hours for next run...`);
+};
+
+
 (async () => {
     logger.banner();
 
@@ -226,12 +236,34 @@ async function doClaim(wallet, attempts) {
                 const timesStr = await ask('How many transactions per wallet?: ');
                 const times = Math.max(1, parseInt(timesStr || '1', 10));
 
-                for (const wallet of wallets) {
-                    console.log();
-                    logger.info(`--- Deposit for ${wallet.address} ---`);
-                    await doDeposit(wallet, amountStr, times);
+                const scheduleChoice = await ask('Run once (O) or Schedule daily (S - 24 hours)? [O/S]: ');
+
+                if (scheduleChoice.toUpperCase() === 'S') {
+                    const dailyIntervalMs = 24 * 60 * 60 * 1000; // 24 jam
+                    
+                    logger.summary(`Daily deposit schedule started.`);
+                    logger.info(`Amount: ${amountStr} WETH, Tx/Wallet: ${times}.`);
+                    logger.info(`Script sekarang berjalan dalam mode terjadwal. Tekan CTRL+C untuk menghentikan.`);
+                    
+                    // Jalankan untuk pertama kali segera
+                    await runDepositTask(wallets, amountStr, times);
+
+                    // Mulai interval 24 jam
+                    setInterval(() => runDepositTask(wallets, amountStr, times), dailyIntervalMs);
+                    
+                    // Kita keluar dari loop menu utama dan membiarkan interval berjalan
+                    // Note: Karena proses CLI sekarang didominasi oleh interval, 
+                    // Anda harus me-restart script untuk kembali ke menu.
+                    return; 
+                } else {
+                    // Jalankan sekali (seperti sebelumnya)
+                    for (const wallet of wallets) {
+                        console.log();
+                        logger.info(`--- Deposit for ${wallet.address} ---`);
+                        await doDeposit(wallet, amountStr, times);
+                    }
+                    await pressEnter();
                 }
-                await pressEnter();
 
             } else if (choice === '2') {
                 const amountStr = await ask('Amount per tx (in exETH), e.g., 0.001: ');
@@ -265,8 +297,6 @@ async function doClaim(wallet, attempts) {
             await pressEnter();
         }
 
-        // logger.section() lebih terstruktur daripada console.clear()
-        // console.clear?.(); // Dihapus
         logger.banner();
         console.log();
     }
