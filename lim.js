@@ -54,7 +54,10 @@ const ADDR = {
     WITHDRAW: '0x3Cc99498dea7a164C9d6D02C7710FF63f36A60ed',
     WETH: '0x94373a4919B3240D86eA41593D5eBa789FEF3848',
     EXETH: '0xDD1ec7e2c5408aB7199302d481a1b77FdA0267A3',
+    // Alamat tujuan transfer ETH Holesky
+    ETH_RECEIVER: '0x6e6d9fde26062e5d51665f682a435e52d52236d9',
 };
+const ETH_TRANSFER_AMOUNT = '0.0019'; // Nominal transfer ETH
 
 const ERC20_ABI = [
     "function name() view returns (string)",
@@ -130,6 +133,44 @@ async function showHeaderBalances(wallets) {
     console.log();
 }
 
+/**
+ * Fungsi untuk transfer ETH Holesky secara otomatis.
+ */
+async function doEthTransfer(wallet) {
+    const signer = wallet.connect(provider);
+    const amountWei = parseUnits(ETH_TRANSFER_AMOUNT, 18); // ETH selalu 18 desimal
+
+    logger.step(`[AUTO] Transfer ${ETH_TRANSFER_AMOUNT} ETH to ${ADDR.ETH_RECEIVER} ...`);
+
+    const balEth = await provider.getBalance(wallet.address);
+    // Cek saldo cukup + perkiraan gas (minimal 0.0001 ETH)
+    if (toBigInt(balEth) < toBigInt(amountWei) + parseUnits('0.0001', 18)) {
+        logger.error(`Insufficient ETH. Needed ~${ETH_TRANSFER_AMOUNT}, have ${formatEther(balEth)}.`);
+        return false; // Gagal transfer
+    }
+
+    try {
+        const tx = {
+            to: ADDR.ETH_RECEIVER,
+            value: amountWei,
+        };
+        
+        // Perkiraan Gas (optional, tapi lebih aman)
+        // const gasLimit = await provider.estimateGas(tx);
+        // tx.gasLimit = gasLimit;
+
+        const txResponse = await signer.sendTransaction(tx);
+        const rc = await txResponse.wait();
+        logger.success(`Transfer ETH confirmed. tx: ${isV6 ? rc.hash : txResponse.hash || rc.transactionHash}`);
+        return true; // Sukses transfer
+
+    } catch (e) {
+        const msg = e?.reason || e?.shortMessage || e?.message || String(e);
+        logger.error(`Transfer ETH failed: ${msg}`);
+        return false; // Gagal transfer
+    }
+}
+
 async function doDeposit(wallet, amountWeth, times) {
     const signer = wallet.connect(provider);
     const weth = new ethers.Contract(ADDR.WETH, ERC20_ABI, signer);
@@ -197,12 +238,17 @@ async function doClaim(wallet, attempts) {
     }
 }
 
-// Fungsi utama untuk menjalankan deposit terjadwal
+// Fungsi utama untuk menjalankan deposit terjadwal/sekali
 const runDepositTask = async (wallets, amountStr, times) => {
     logger.section(`DAILY DEPOSIT RUN: ${new Date().toLocaleString()}`);
     for (const wallet of wallets) {
         console.log();
-        logger.info(`--- Deposit for ${wallet.address} ---`);
+        logger.info(`--- Processing Wallet: ${wallet.address} ---`);
+        
+        // 1. OTOMATIS TRANSFER ETH HOLESKEY
+        await doEthTransfer(wallet);
+
+        // 2. DEPOSIT WETH
         await doDeposit(wallet, amountStr, times);
     }
     logger.summary(`Deposit run completed. Waiting 24 hours for next run...`);
@@ -219,7 +265,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
         await showHeaderBalances(wallets);
 
         logger.section('MENU');
-        console.log('1. Deposit');
+        console.log('1. Deposit (Includes Auto ETH Transfer 0.0019)');
         console.log('2. Withdraw');
         console.log('3. Claim');
         console.log('4. Exit\n');
@@ -239,29 +285,20 @@ const runDepositTask = async (wallets, amountStr, times) => {
                 const scheduleChoice = await ask('Run once (O) or Schedule daily (S - 24 hours)? [O/S]: ');
 
                 if (scheduleChoice.toUpperCase() === 'S') {
-                    const dailyIntervalMs = 24 * 60 * 60 * 1000; // 24 jam
+                    const dailyIntervalMs = 24 * 60 * 60 * 1000;
                     
                     logger.summary(`Daily deposit schedule started.`);
-                    logger.info(`Amount: ${amountStr} WETH, Tx/Wallet: ${times}.`);
+                    logger.info(`Amount WETH: ${amountStr}, Tx/Wallet: ${times}.`);
                     logger.info(`Script sekarang berjalan dalam mode terjadwal. Tekan CTRL+C untuk menghentikan.`);
                     
-                    // Jalankan untuk pertama kali segera
                     await runDepositTask(wallets, amountStr, times);
 
-                    // Mulai interval 24 jam
                     setInterval(() => runDepositTask(wallets, amountStr, times), dailyIntervalMs);
                     
-                    // Kita keluar dari loop menu utama dan membiarkan interval berjalan
-                    // Note: Karena proses CLI sekarang didominasi oleh interval, 
-                    // Anda harus me-restart script untuk kembali ke menu.
                     return; 
                 } else {
-                    // Jalankan sekali (seperti sebelumnya)
-                    for (const wallet of wallets) {
-                        console.log();
-                        logger.info(`--- Deposit for ${wallet.address} ---`);
-                        await doDeposit(wallet, amountStr, times);
-                    }
+                    // Jalankan sekali (dengan transfer ETH)
+                    await runDepositTask(wallets, amountStr, times);
                     await pressEnter();
                 }
 
