@@ -40,8 +40,9 @@ npm install ethers
 ```
 nano .env
 ```
-```
+
 ~ Run The Scripts 
+
 ```
-nosde lim .js
+node lim .js
 ```
