@@ -2,11 +2,14 @@ require('dotenv').config();
 let ethersLib = require('ethers');
 const ethers = ethersLib.ethers ? ethersLib.ethers : ethersLib;
 const isV6 = !!ethers.parseEther;
+
+// --- Ethers.js v5/v6 Compatibility Helpers ---
 const Provider = isV6 ? ethers.JsonRpcProvider : ethers.providers.JsonRpcProvider;
 const toBigInt = (n) => (isV6 ? n : BigInt(n?.toString?.() ?? String(n)));
 const parseUnits = (v, d) => (isV6 ? ethers.parseUnits(v, d) : ethers.utils.parseUnits(v, d));
 const formatUnits = (v, d) => (isV6 ? ethers.formatUnits(v, d) : ethers.utils.formatUnits(v, d));
 const formatEther = (v) => (isV6 ? ethers.formatEther(v) : ethers.utils.formatEther(v));
+// ---------------------------------------------
 
 const colors = {
     reset: "\x1b[0m",
@@ -32,7 +35,7 @@ const logger = {
     summary: (msg) => console.log(`${colors.green}${colors.bold}[SUMMARY] ${msg}${colors.reset}`),
     banner: () => {
         const border = `${colors.blue}${colors.bold}╔═════════════════════════════════════════╗${colors.reset}`;
-        const title = `${colors.blue}${colors.bold}║   🍉 19Seniman From Insider   🍉    ║${colors.reset}`;
+        const title = `${colors.blue}${colors.bold}║   🍉 19Seniman From Insider    🍉   ║${colors.reset}`;
         const bottomBorder = `${colors.blue}${colors.bold}╚═════════════════════════════════════════╝${colors.reset}`;
 
         console.log(`\n${border}`);
@@ -48,7 +51,10 @@ const logger = {
     countdown: (msg) => process.stdout.write(`\r${colors.blue}[⏰] ${msg}${colors.reset}`),
 };
 
-const RPC_URL = 'https://ethereum-holesky-rpc.publicnode.com/';
+// --- RPC URL DIPERBARUI DI SINI ---
+const RPC_URL = 'https://rpc.hoodi.ethpandaops.io';
+// ---------------------------------
+
 const ADDR = {
     DEPOSIT: '0x0c6A085e9d17A51DEA2A7e954ACcAb1429213B75',
     WITHDRAW: '0x3Cc99498dea7a164C9d6D02C7710FF63f36A60ed',
