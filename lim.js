@@ -51,19 +51,18 @@ const logger = {
     countdown: (msg) => process.stdout.write(`\r${colors.blue}[⏰] ${msg}${colors.reset}`),
 };
 
-// --- RPC URL DIPERBARUI ---
+// --- KONFIGURASI JARINGAN ---
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io';
-// -------------------------
-
 const ADDR = {
     DEPOSIT: '0x0c6A085e9d17A51DEA2A7e954ACcAb1429213B75',
     WITHDRAW: '0x3Cc99498dea7a164C9d6D02C7710FF63f36A60ed',
-    WETH: '0x4242424242424242424242424242424242424242', // <-- DIPERBARUI ke alamat WETH Holesky standar
-    EXETH: '0xDD1ec7e2c5408aB7199302d481a1b77FdA0267A3', // Alamat EXETH dari proyek yang bersangkutan
+    WETH: '0x4242424242424242424242424242424242424242', // WETH Holesky Standard
+    EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', // <-- ALAMAT EXETH BARU
     // Alamat tujuan transfer ETH Holesky
     ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59',
 };
 const ETH_TRANSFER_AMOUNT = '0.0019'; // Nominal transfer ETH
+// -----------------------------
 
 const ERC20_ABI = [
     "function name() view returns (string)",
@@ -125,7 +124,7 @@ async function showHeaderBalances(wallets) {
     logger.loading(`Fetching balances (ETH Holesky & exETH) ...`);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
     
-    // Penanganan eror yang lebih kuat
+    // Penanganan eror yang lebih kuat untuk symbol/decimals
     let exDec = 18;
     let exSym = 'exETH';
     try {
@@ -139,6 +138,7 @@ async function showHeaderBalances(wallets) {
         const [ethBal, exBal] = await Promise.all([
             provider.getBalance(w.address),
             ex.balanceOf(w.address).catch((e) => {
+                // Ini seharusnya menangkap error "could not decode result data"
                 logger.error(`Error fetching EXETH balance for ${w.address}: ${e.shortMessage || 'Decode Error'}`);
                 return toBigInt(0);
             })
