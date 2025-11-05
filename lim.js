@@ -51,15 +51,15 @@ const logger = {
     countdown: (msg) => process.stdout.write(`\r${colors.blue}[⏰] ${msg}${colors.reset}`),
 };
 
-// --- RPC URL DIPERBARUI DI SINI ---
+// --- RPC URL DIPERBARUI ---
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io';
-// ---------------------------------
+// -------------------------
 
 const ADDR = {
     DEPOSIT: '0x0c6A085e9d17A51DEA2A7e954ACcAb1429213B75',
     WITHDRAW: '0x3Cc99498dea7a164C9d6D02C7710FF63f36A60ed',
-    WETH: '0x94373a4919B3240D86eA41593D5eBa789FEF3848',
-    EXETH: '0xDD1ec7e2c5408aB7199302d481a1b77FdA0267A3',
+    WETH: '0x4242424242424242424242424242424242424242', // <-- DIPERBARUI ke alamat WETH Holesky standar
+    EXETH: '0xDD1ec7e2c5408aB7199302d481a1b77FdA0267A3', // Alamat EXETH dari proyek yang bersangkutan
     // Alamat tujuan transfer ETH Holesky
     ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59',
 };
@@ -124,13 +124,24 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
 async function showHeaderBalances(wallets) {
     logger.loading(`Fetching balances (ETH Holesky & exETH) ...`);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
-    const exDec = await ex.decimals().catch(() => 18);
-    const exSym = await ex.symbol().catch(() => 'exETH');
+    
+    // Penanganan eror yang lebih kuat
+    let exDec = 18;
+    let exSym = 'exETH';
+    try {
+        exDec = await ex.decimals();
+        exSym = await ex.symbol();
+    } catch (e) {
+        logger.warn(`Could not fetch EXETH token details (symbol/decimals). Using default: 18 decimals, 'exETH' symbol.`);
+    }
 
     for (const w of wallets) {
         const [ethBal, exBal] = await Promise.all([
             provider.getBalance(w.address),
-            ex.balanceOf(w.address)
+            ex.balanceOf(w.address).catch((e) => {
+                logger.error(`Error fetching EXETH balance for ${w.address}: ${e.shortMessage || 'Decode Error'}`);
+                return toBigInt(0);
+            })
         ]);
         logger.info(`Wallet ${w.address}`);
         console.log(`ETH (Holesky): ${formatEther(ethBal)}`);
@@ -208,7 +219,13 @@ async function doWithdraw(wallet, amountExEth, times) {
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, signer);
     const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
-    const exDec = await ex.decimals().catch(() => 18);
+    let exDec = 18;
+    try {
+        exDec = await ex.decimals();
+    } catch (e) {
+        logger.warn(`Could not fetch EXETH decimals. Using default: 18 decimals.`);
+    }
+
     const amountWei = parseUnits(amountExEth, exDec);
 
     for (let i = 1; i <= times; i++) {
