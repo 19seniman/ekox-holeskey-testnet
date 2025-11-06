@@ -56,7 +56,7 @@ const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; // RPC HOODI
 
 const ADDR = {
     // ✅ DIPERBARUI: Alamat Deposit terbaru
-    DEPOSIT: '0x3508A952176b3c15387C97BE809eaffB1982176a', 
+    DEPOSIT: '0xbeac0eeeeeeeeeeeeeeeeeeeeeeeeeeeeeebeac0', 
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
     WETH: '0x4200000000000000000000000000000000000006', 
     EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', 
@@ -75,9 +75,9 @@ const ERC20_ABI = [
     "function approve(address spender, uint256 amount) returns (bool)",
     "function deposit() payable", 
 ];
-// ABI Deposit disederhanakan
+// ✅ ABI Deposit diubah ke deposit(uint256)
 const DEPOSIT_ABI = [
-    "function deposit(address _token, uint256 _value) external",
+    "function deposit(uint256 _value) external",
 ];
 const WITHDRAW_ABI = [
     "function withdraw(uint256 _value, address _addr) external",
@@ -214,8 +214,9 @@ async function doDeposit(wallet, amountWeth, times) {
             // Pastikan Allowance sebelum Deposit
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
-            logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
-            const txDep = await dep.deposit(ADDR.WETH, amountWei);
+            // ✅ PANGGILAN FUNGSI DIUBAH
+            logger.loading(`Calling deposit(${amountWeth} WETH) ...`);
+            const txDep = await dep.deposit(amountWei); // DULU: dep.deposit(ADDR.WETH, amountWei)
             const rcDep = await txDep.wait();
             logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
         } catch (e) {
@@ -268,7 +269,7 @@ async function doWithdraw(wallet, amountExEth, times) {
 
 async function doClaim(wallet, attempts) {
     const signer = wallet.connect(provider);
-    const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
+    const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHERC20_ABI, signer);
 
     logger.info(`Proceeding to direct claims (no index scanning). If a request isn't ready (~25 min), the tx may revert.`);
     const count = Math.max(1, parseInt(attempts || 1, 10));
