@@ -52,9 +52,10 @@ const logger = {
 };
 
 // --- KONFIGURASI JARINGAN HOODI ---
-const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; 
+// ✅ RPC BARU (Ankr) untuk stabilitas koneksi
+const RPC_URL = 'https://rpc.ankr.com/eth_hoodi'; 
 
-// ALAMAT HOODI
+// ✅ ALAMAT HOODI
 const ADDR = {
     // ALAMAT RESTAKE/DEPOSIT DARI ANDA
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
@@ -95,10 +96,9 @@ const provider = new Provider(RPC_URL);
 
 const readline = require('readline');
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-// --- FIX DITERAPKAN DI SINI ---
+// FIX ERROR: res.trim is not a function
 const ask = (q) => new Promise((res) => rl.question(q, (ans) => res(ans.trim())));
 const pressEnter = () => ask('\nPress Enter to return to the main menu...');
-// ----------------------------
 
 function loadPrivateKeysFromEnv() {
     const keys = Object.keys(process.env)
@@ -211,13 +211,11 @@ async function doDeposit(wallet, amountWeth, times) {
             
             if (toBigInt(balWeth) < toBigInt(amountWei)) {
                 logger.warn(`Insufficient WETH. Trying to Wrap ETH first...`);
-                // Coba wrap 1.5x dari jumlah deposit jika saldo kurang
                 const needed = formatEther(toBigInt(amountWei) - toBigInt(balWeth));
                 const wrapAmount = formatEther(parseUnits(needed, 18) * BigInt(15) / BigInt(10)); 
 
                 await doWrapEth(wallet, wrapAmount); 
                 
-                // Cek saldo lagi setelah wrap
                 const newBalWeth = await weth.balanceOf(wallet.address);
                 if (toBigInt(newBalWeth) < toBigInt(amountWei)) {
                      logger.critical(`Still insufficient WETH after wrapping. Needed ${amountWeth}, have ${formatUnits(newBalWeth, wethDec)}. Skipping.`);
@@ -235,7 +233,7 @@ async function doDeposit(wallet, amountWeth, times) {
 
         } catch (e) {
             const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-            logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Periksa ABI DEPOSIT jika error decode masih terjadi.`);
+            logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Harap periksa ABI DEPOSIT jika error decode terjadi setelah fix RPC.`);
             continue; 
         }
     }
