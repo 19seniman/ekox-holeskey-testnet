@@ -54,7 +54,7 @@ const logger = {
 // --- KONFIGURASI JARINGAN HOODI ---
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; 
 
-// ✅ SEMUA ALAMAT KINI MENGGUNAKAN ALAMAT DARI JARINGAN HOODI
+// ALAMAT HOODI
 const ADDR = {
     // ALAMAT RESTAKE/DEPOSIT DARI ANDA
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
@@ -81,10 +81,9 @@ const ERC20_ABI = [
     "function balanceOf(address) view returns (uint256)",
     "function allowance(address owner, address spender) view returns (uint256)",
     "function approve(address spender, uint256 amount) returns (bool)",
-    "function deposit() payable", // Menambah fungsi deposit WETH
+    "function deposit() payable", 
 ];
 const DEPOSIT_ABI = [
-    // ABI untuk fungsi deposit(address token, uint256 value)
     "function deposit(address _token, uint256 _value) external" 
 ];
 const WITHDRAW_ABI = [
@@ -96,8 +95,10 @@ const provider = new Provider(RPC_URL);
 
 const readline = require('readline');
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q) => new Promise((res) => rl.question(q, (ans) => res.trim()));
+// --- FIX DITERAPKAN DI SINI ---
+const ask = (q) => new Promise((res) => rl.question(q, (ans) => res(ans.trim())));
 const pressEnter = () => ask('\nPress Enter to return to the main menu...');
+// ----------------------------
 
 function loadPrivateKeysFromEnv() {
     const keys = Object.keys(process.env)
@@ -140,7 +141,6 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
 
 async function showHeaderBalances(wallets) {
     logger.loading(`Fetching balances (ETH Hoodi & exETH) ...`);
-    // Kontrak EXETH
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
     
     let exDec = 18;
@@ -156,7 +156,6 @@ async function showHeaderBalances(wallets) {
         const [ethBal, exBal] = await Promise.all([
             provider.getBalance(w.address),
             ex.balanceOf(w.address).catch((e) => {
-                // Jika error decode di sini, berarti alamat EXETH salah atau Node RPC bermasalah.
                 logger.error(`Error fetching EXETH balance for ${w.address}: ${e.shortMessage || 'Decode Error'}`);
                 return toBigInt(0);
             })
@@ -198,7 +197,6 @@ async function doWrapEth(wallet, amountEth) {
 async function doDeposit(wallet, amountWeth, times) {
     const signer = wallet.connect(provider);
     const weth = new ethers.Contract(ADDR.WETH, ERC20_ABI, signer);
-    // Kontrak DEPOSIT
     const dep = new ethers.Contract(ADDR.DEPOSIT, DEPOSIT_ABI, signer);
 
     const wethDec = 18;
@@ -237,7 +235,6 @@ async function doDeposit(wallet, amountWeth, times) {
 
         } catch (e) {
             const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-            // Jika error decode muncul di sini, berarti ABI Deposit salah, atau Deposit/EXETH bukan kontrak yang sama.
             logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Periksa ABI DEPOSIT jika error decode masih terjadi.`);
             continue; 
         }
@@ -247,7 +244,6 @@ async function doDeposit(wallet, amountWeth, times) {
 async function doWithdraw(wallet, amountExEth, times) {
     const signer = wallet.connect(provider);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, signer);
-    // Kontrak WITHDRAW
     const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
     let exDec = 18;
@@ -280,7 +276,6 @@ async function doWithdraw(wallet, amountExEth, times) {
 
 async function doClaim(wallet, attempts) {
     const signer = wallet.connect(provider);
-    // Kontrak WITHDRAW
     const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
     logger.info(`Proceeding to direct claims (no index scanning). If a request isn't ready (~25 min), the tx may revert.`);
