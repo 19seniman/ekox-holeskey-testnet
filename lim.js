@@ -51,17 +51,27 @@ const logger = {
     countdown: (msg) => process.stdout.write(`\r${colors.blue}[⏰] ${msg}${colors.reset}`),
 };
 
-// --- KONFIGURASI JARINGAN ---
-const RPC_URL = 'https://rpc.hoodi.ethpandaops.io';
+// --- KONFIGURASI JARINGAN HOODI ---
+const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; 
+
+// ✅ SEMUA ALAMAT KINI MENGGUNAKAN ALAMAT DARI JARINGAN HOODI
 const ADDR = {
-    DEPOSIT: '0x0c6A085e9d17A51DEA2A7e954ACcAb1429213B75',
-    WITHDRAW: '0x3Cc99498dea7a164C9d6D02C7710FF63f36A60ed',
-    WETH: '0x4242424242424242424242424242424242424242', // WETH Holesky Standard
-    EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', // <-- ALAMAT EXETH BARU
-    // Alamat tujuan transfer ETH Holesky
-    ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59',
+    // ALAMAT RESTAKE/DEPOSIT DARI ANDA
+    DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
+    
+    // ALAMAT WITHDRAW DARI ANDA
+    WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
+    
+    // WETH Standar Hoodi
+    WETH: '0x4200000000000000000000000000000000000006', 
+    
+    // ALAMAT EXETH DARI ANDA (Sama dengan DEPOSIT)
+    EXETH: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
+    
+    // Alamat tujuan transfer ETH Hoodi
+    ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59', 
 };
-const ETH_TRANSFER_AMOUNT = '0.0019'; // Nominal transfer ETH
+const ETH_TRANSFER_AMOUNT = '0.0019'; 
 // -----------------------------
 
 const ERC20_ABI = [
@@ -71,9 +81,11 @@ const ERC20_ABI = [
     "function balanceOf(address) view returns (uint256)",
     "function allowance(address owner, address spender) view returns (uint256)",
     "function approve(address spender, uint256 amount) returns (bool)",
+    "function deposit() payable", // Menambah fungsi deposit WETH
 ];
 const DEPOSIT_ABI = [
-    "function deposit(address _token, uint256 _value) external"
+    // ABI untuk fungsi deposit(address token, uint256 value)
+    "function deposit(address _token, uint256 _value) external" 
 ];
 const WITHDRAW_ABI = [
     "function withdraw(uint256 _value, address _addr) external",
@@ -84,7 +96,7 @@ const provider = new Provider(RPC_URL);
 
 const readline = require('readline');
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q) => new Promise((res) => rl.question(q, (ans) => res(ans.trim())));
+const ask = (q) => new Promise((res) => rl.question(q, (ans) => res.trim()));
 const pressEnter = () => ask('\nPress Enter to return to the main menu...');
 
 function loadPrivateKeysFromEnv() {
@@ -114,17 +126,23 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
     if (toBigInt(current) >= toBigInt(amount)) return false;
 
     logger.step(`Approving allowance to ${spender} ...`);
-    const tx = await tokenCtr.approve(spender, amount);
-    const rc = await tx.wait();
-    logger.success(`Approve confirmed. tx: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
-    return true;
+    try {
+        const tx = await tokenCtr.approve(spender, amount);
+        const rc = await tx.wait();
+        logger.success(`Approve confirmed. tx: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
+        return true;
+    } catch (e) {
+        const msg = e?.reason || e?.shortMessage || e?.message || String(e);
+        logger.error(`Approve failed: ${msg}`);
+        throw new Error(`Approve failed: ${msg}`); 
+    }
 }
 
 async function showHeaderBalances(wallets) {
-    logger.loading(`Fetching balances (ETH Holesky & exETH) ...`);
+    logger.loading(`Fetching balances (ETH Hoodi & exETH) ...`);
+    // Kontrak EXETH
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
     
-    // Penanganan eror yang lebih kuat untuk symbol/decimals
     let exDec = 18;
     let exSym = 'exETH';
     try {
@@ -138,59 +156,49 @@ async function showHeaderBalances(wallets) {
         const [ethBal, exBal] = await Promise.all([
             provider.getBalance(w.address),
             ex.balanceOf(w.address).catch((e) => {
-                // Ini seharusnya menangkap error "could not decode result data"
+                // Jika error decode di sini, berarti alamat EXETH salah atau Node RPC bermasalah.
                 logger.error(`Error fetching EXETH balance for ${w.address}: ${e.shortMessage || 'Decode Error'}`);
                 return toBigInt(0);
             })
         ]);
         logger.info(`Wallet ${w.address}`);
-        console.log(`ETH (Holesky): ${formatEther(ethBal)}`);
+        console.log(`ETH (Hoodi): ${formatEther(ethBal)}`);
         console.log(`${exSym}: ${formatUnits(exBal, exDec)}`);
     }
     console.log();
 }
 
 /**
- * Fungsi untuk transfer ETH Holesky secara otomatis.
+ * Fungsi untuk wrap ETH ke WETH (diperlukan sebelum Deposit).
  */
-async function doEthTransfer(wallet) {
+async function doWrapEth(wallet, amountEth) {
     const signer = wallet.connect(provider);
-    const amountWei = parseUnits(ETH_TRANSFER_AMOUNT, 18); // ETH selalu 18 desimal
-
-    logger.step(`[AUTO] Transfer ${ETH_TRANSFER_AMOUNT} ETH to ${ADDR.ETH_RECEIVER} ...`);
-
-    const balEth = await provider.getBalance(wallet.address);
-    // Cek saldo cukup + perkiraan gas (minimal 0.0001 ETH)
-    if (toBigInt(balEth) < toBigInt(amountWei) + parseUnits('0.0001', 18)) {
-        logger.error(`Insufficient ETH. Needed ~${ETH_TRANSFER_AMOUNT}, have ${formatEther(balEth)}.`);
-        return false; // Gagal transfer
-    }
+    const weth = new ethers.Contract(ADDR.WETH, ERC20_ABI, signer);
+    const amountWei = parseUnits(amountEth, 18);
+    
+    logger.step(`[WRAP] Wrapping ${amountEth} ETH to WETH ...`);
 
     try {
-        const tx = {
-            to: ADDR.ETH_RECEIVER,
-            value: amountWei,
-        };
-        
-        // Perkiraan Gas (optional, tapi lebih aman)
-        // const gasLimit = await provider.estimateGas(tx);
-        // tx.gasLimit = gasLimit;
+        if (!weth.deposit) {
+            logger.error(`WETH Contract does not appear to have a standard deposit() function.`);
+            return false;
+        }
 
-        const txResponse = await signer.sendTransaction(tx);
-        const rc = await txResponse.wait();
-        logger.success(`Transfer ETH confirmed. tx: ${isV6 ? rc.hash : txResponse.hash || rc.transactionHash}`);
-        return true; // Sukses transfer
-
+        const tx = await weth.deposit({ value: amountWei });
+        const rc = await tx.wait();
+        logger.success(`Wrap successful. tx: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
+        return true;
     } catch (e) {
         const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-        logger.error(`Transfer ETH failed: ${msg}`);
-        return false; // Gagal transfer
+        logger.error(`Wrap failed: ${msg}`);
+        return false;
     }
 }
 
 async function doDeposit(wallet, amountWeth, times) {
     const signer = wallet.connect(provider);
     const weth = new ethers.Contract(ADDR.WETH, ERC20_ABI, signer);
+    // Kontrak DEPOSIT
     const dep = new ethers.Contract(ADDR.DEPOSIT, DEPOSIT_ABI, signer);
 
     const wethDec = 18;
@@ -199,24 +207,47 @@ async function doDeposit(wallet, amountWeth, times) {
     for (let i = 1; i <= times; i++) {
         logger.step(`Deposit ${i}/${times} for ${wallet.address} ...`);
 
-        const balWeth = await weth.balanceOf(wallet.address);
-        if (toBigInt(balWeth) < toBigInt(amountWei)) {
-            logger.error(`Insufficient WETH. Needed ${amountWeth}, have ${formatUnits(balWeth, wethDec)}. Wrap ETH to WETH`);
-            continue;
+        try {
+            logger.loading(`Checking WETH balance...`);
+            const balWeth = await weth.balanceOf(wallet.address);
+            
+            if (toBigInt(balWeth) < toBigInt(amountWei)) {
+                logger.warn(`Insufficient WETH. Trying to Wrap ETH first...`);
+                // Coba wrap 1.5x dari jumlah deposit jika saldo kurang
+                const needed = formatEther(toBigInt(amountWei) - toBigInt(balWeth));
+                const wrapAmount = formatEther(parseUnits(needed, 18) * BigInt(15) / BigInt(10)); 
+
+                await doWrapEth(wallet, wrapAmount); 
+                
+                // Cek saldo lagi setelah wrap
+                const newBalWeth = await weth.balanceOf(wallet.address);
+                if (toBigInt(newBalWeth) < toBigInt(amountWei)) {
+                     logger.critical(`Still insufficient WETH after wrapping. Needed ${amountWeth}, have ${formatUnits(newBalWeth, wethDec)}. Skipping.`);
+                     continue;
+                }
+            }
+
+            logger.loading(`Ensuring allowance...`);
+            await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
+
+            logger.loading(`Calling deposit(WETH, ${amountWeth}) ...`);
+            const txDep = await dep.deposit(ADDR.WETH, amountWei);
+            const rcDep = await txDep.wait();
+            logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
+
+        } catch (e) {
+            const msg = e?.reason || e?.shortMessage || e?.message || String(e);
+            // Jika error decode muncul di sini, berarti ABI Deposit salah, atau Deposit/EXETH bukan kontrak yang sama.
+            logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Periksa ABI DEPOSIT jika error decode masih terjadi.`);
+            continue; 
         }
-
-        await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
-
-        logger.loading(`Calling deposit(WETH, ${amountWeth}) ...`);
-        const txDep = await dep.deposit(ADDR.WETH, amountWei);
-        const rcDep = await txDep.wait();
-        logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
     }
 }
 
 async function doWithdraw(wallet, amountExEth, times) {
     const signer = wallet.connect(provider);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, signer);
+    // Kontrak WITHDRAW
     const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
     let exDec = 18;
@@ -231,18 +262,25 @@ async function doWithdraw(wallet, amountExEth, times) {
     for (let i = 1; i <= times; i++) {
         logger.step(`Withdraw ${i}/${times} for ${wallet.address} ...`);
 
-        await ensureAllowance(ex, wallet.address, ADDR.WITHDRAW, amountWei);
+        try {
+            await ensureAllowance(ex, wallet.address, ADDR.WITHDRAW, amountWei);
 
-        logger.loading(`Calling withdraw(${amountExEth} exETH, WETH) ...`);
-        const txW = await wdr.withdraw(amountWei, ADDR.WETH);
-        const rcW = await txW.wait();
-        logger.success(`Withdraw submitted. tx: ${isV6 ? rcW.hash : txW.hash || rcW.transactionHash}`);
-        logger.info(`Typical unlock to claim is ~25 minutes after withdraw.`);
+            logger.loading(`Calling withdraw(${amountExEth} exETH, WETH) ...`);
+            const txW = await wdr.withdraw(amountWei, ADDR.WETH);
+            const rcW = await txW.wait();
+            logger.success(`Withdraw submitted. tx: ${isV6 ? rcW.hash : txW.hash || rcW.transactionHash}`);
+            logger.info(`Typical unlock to claim is ~25 minutes after withdraw.`);
+        } catch (e) {
+            const msg = e?.reason || e?.shortMessage || e?.message || String(e);
+            logger.error(`Withdraw ${i}/${times} failed: ${msg}`);
+            continue;
+        }
     }
 }
 
 async function doClaim(wallet, attempts) {
     const signer = wallet.connect(provider);
+    // Kontrak WITHDRAW
     const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
     logger.info(`Proceeding to direct claims (no index scanning). If a request isn't ready (~25 min), the tx may revert.`);
@@ -261,17 +299,12 @@ async function doClaim(wallet, attempts) {
     }
 }
 
-// Fungsi utama untuk menjalankan deposit terjadwal/sekali
 const runDepositTask = async (wallets, amountStr, times) => {
     logger.section(`DAILY DEPOSIT RUN: ${new Date().toLocaleString()}`);
     for (const wallet of wallets) {
         console.log();
         logger.info(`--- Processing Wallet: ${wallet.address} ---`);
         
-        // 1. OTOMATIS TRANSFER ETH HOLESKEY
-        await doEthTransfer(wallet);
-
-        // 2. DEPOSIT WETH
         await doDeposit(wallet, amountStr, times);
     }
     logger.summary(`Deposit run completed. Waiting 24 hours for next run...`);
@@ -288,7 +321,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
         await showHeaderBalances(wallets);
 
         logger.section('MENU');
-        console.log('1. Deposit (Includes Auto ETH Transfer 0.0019)');
+        console.log('1. Deposit (Includes Auto WETH Wrap if needed)');
         console.log('2. Withdraw');
         console.log('3. Claim');
         console.log('4. Exit\n');
@@ -320,7 +353,6 @@ const runDepositTask = async (wallets, amountStr, times) => {
                     
                     return; 
                 } else {
-                    // Jalankan sekali (dengan transfer ETH)
                     await runDepositTask(wallets, amountStr, times);
                     await pressEnter();
                 }
