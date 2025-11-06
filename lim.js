@@ -52,24 +52,15 @@ const logger = {
 };
 
 // --- KONFIGURASI JARINGAN HOODI ---
-// ✅ RPC BARU (Ankr) untuk stabilitas koneksi
-const RPC_URL = 'https://rpc.ankr.com/eth_hoodi'; 
+// ✅ KEMBALI KE RPC RESMI (Toleransi Error 502)
+const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; 
 
-// ✅ ALAMAT HOODI
+// ALAMAT HOODI (Sudah dikonfirmasi)
 const ADDR = {
-    // ALAMAT RESTAKE/DEPOSIT DARI ANDA
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
-    
-    // ALAMAT WITHDRAW DARI ANDA
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
-    
-    // WETH Standar Hoodi
     WETH: '0x4200000000000000000000000000000000000006', 
-    
-    // ALAMAT EXETH DARI ANDA (Sama dengan DEPOSIT)
     EXETH: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
-    
-    // Alamat tujuan transfer ETH Hoodi
     ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59', 
 };
 const ETH_TRANSFER_AMOUNT = '0.0019'; 
@@ -96,7 +87,6 @@ const provider = new Provider(RPC_URL);
 
 const readline = require('readline');
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-// FIX ERROR: res.trim is not a function
 const ask = (q) => new Promise((res) => rl.question(q, (ans) => res(ans.trim())));
 const pressEnter = () => ask('\nPress Enter to return to the main menu...');
 
@@ -153,13 +143,16 @@ async function showHeaderBalances(wallets) {
     }
 
     for (const w of wallets) {
-        const [ethBal, exBal] = await Promise.all([
-            provider.getBalance(w.address),
-            ex.balanceOf(w.address).catch((e) => {
-                logger.error(`Error fetching EXETH balance for ${w.address}: ${e.shortMessage || 'Decode Error'}`);
-                return toBigInt(0);
-            })
-        ]);
+        // Handle RPC errors during balance fetching more gracefully
+        let ethBal = toBigInt(0);
+        let exBal = toBigInt(0);
+        try {
+             ethBal = await provider.getBalance(w.address);
+             exBal = await ex.balanceOf(w.address);
+        } catch (e) {
+             logger.error(`RPC/Connection Error during balance fetch: ${e.shortMessage || e.message}`);
+        }
+        
         logger.info(`Wallet ${w.address}`);
         console.log(`ETH (Hoodi): ${formatEther(ethBal)}`);
         console.log(`${exSym}: ${formatUnits(exBal, exDec)}`);
@@ -233,7 +226,7 @@ async function doDeposit(wallet, amountWeth, times) {
 
         } catch (e) {
             const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-            logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Harap periksa ABI DEPOSIT jika error decode terjadi setelah fix RPC.`);
+            logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Coba lagi jika error 502 Bad Gateway.`);
             continue; 
         }
     }
