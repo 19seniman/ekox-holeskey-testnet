@@ -55,13 +55,10 @@ const logger = {
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; // RPC HOODI
 
 const ADDR = {
-    // ✅ DIPERBARUI: Alamat DEPOSIT/Restake yang baru
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
-    // ✅ DIPERBARUI: Alamat WITHDRAW yang baru
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
-    // WETH STANDAR HOODI
+    // WETH STANDAR HOODI (tetap menggunakan alamat yang sama)
     WETH: '0x4200000000000000000000000000000000000006', 
-    // ALAMAT EXETH (sama dengan DEPOSIT yang baru)
     EXETH: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
     
     // Alamat tujuan transfer ETH Hoodi
@@ -134,6 +131,7 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
 }
 
 async function showHeaderBalances(wallets) {
+    // Label diubah
     logger.loading(`Fetching balances (ETH Hoodi & exETH) ...`);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
     
@@ -208,15 +206,17 @@ async function doDeposit(wallet, amountWeth, times) {
     for (let i = 1; i <= times; i++) {
         logger.step(`Deposit ${i}/${times} for ${wallet.address} ...`);
         try {
+            // Label diubah
             const balWeth = await weth.balanceOf(wallet.address);
             if (toBigInt(balWeth) < toBigInt(amountWei)) {
-                logger.error(`Insufficient WETH. Needed ${amountWeth}, have ${formatUnits(balWeth, wethDec)}. Wrap ETH to WETH manually or use another script if available.`);
+                logger.error(`Insufficient ETH HOODI (WETH). Needed ${amountWeth}, have ${formatUnits(balWeth, wethDec)}. Wrap ETH to ETH HOODI (WETH) manually.`);
                 continue;
             }
 
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
-            logger.loading(`Calling deposit(WETH, ${amountWeth}) ...`);
+            // Label diubah
+            logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
             const txDep = await dep.deposit(ADDR.WETH, amountWei);
             const rcDep = await txDep.wait();
             logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
@@ -247,7 +247,8 @@ async function doWithdraw(wallet, amountExEth, times) {
         try {
             await ensureAllowance(ex, wallet.address, ADDR.WITHDRAW, amountWei);
 
-            logger.loading(`Calling withdraw(${amountExEth} exETH, WETH) ...`);
+            // Label diubah
+            logger.loading(`Calling withdraw(${amountExEth} exETH, ETH HOODI/WETH) ...`);
             const txW = await wdr.withdraw(amountWei, ADDR.WETH);
             const rcW = await txW.wait();
             logger.success(`Withdraw submitted. tx: ${isV6 ? rcW.hash : txW.hash || rcW.transactionHash}`);
@@ -290,7 +291,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
         // 1. OTOMATIS TRANSFER ETH HOODI
         await doEthTransfer(wallet);
 
-        // 2. DEPOSIT WETH
+        // 2. DEPOSIT ETH HOODI (WETH)
         await doDeposit(wallet, amountStr, times);
     }
     logger.summary(`Deposit run completed. Waiting 24 hours for next run...`);
@@ -307,6 +308,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
         await showHeaderBalances(wallets);
 
         logger.section('MENU');
+        // Label diubah di menu
         console.log('1. Deposit (Includes Auto ETH Transfer 0.0019)');
         console.log('2. Withdraw');
         console.log('3. Claim');
@@ -320,7 +322,8 @@ const runDepositTask = async (wallets, amountStr, times) => {
 
         try {
             if (choice === '1') {
-                const amountStr = await ask('Amount per tx (in WETH), e.g., 0.01: ');
+                // Label diubah pada prompt
+                const amountStr = await ask('Amount per tx (in ETH HOODI/WETH), e.g., 0.01: ');
                 const timesStr = await ask('How many transactions per wallet?: ');
                 const times = Math.max(1, parseInt(timesStr || '1', 10));
 
@@ -330,7 +333,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
                     const dailyIntervalMs = 24 * 60 * 60 * 1000;
                     
                     logger.summary(`Daily deposit schedule started.`);
-                    logger.info(`Amount WETH: ${amountStr}, Tx/Wallet: ${times}.`);
+                    logger.info(`Amount ETH HOODI (WETH): ${amountStr}, Tx/Wallet: ${times}.`);
                     logger.info(`Script sekarang berjalan dalam mode terjadwal. Tekan CTRL+C untuk menghentikan.`);
                     
                     await runDepositTask(wallets, amountStr, times);
