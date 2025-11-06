@@ -58,7 +58,6 @@ const ADDR = {
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
     WETH: '0x4200000000000000000000000000000000000006', 
-    // ✅ DIPERBARUI: Alamat EXETH yang baru
     EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', 
     
     ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59',
@@ -75,10 +74,9 @@ const ERC20_ABI = [
     "function approve(address spender, uint256 amount) returns (bool)",
     "function deposit() payable", 
 ];
-// Menambahkan Error(string) untuk dekode revert yang lebih baik
+// ✅ DIPERBARUI: ABI Deposit dikembalikan ke bentuk paling sederhana
 const DEPOSIT_ABI = [
     "function deposit(address _token, uint256 _value) external",
-    "error Error(string message)", 
 ];
 const WITHDRAW_ABI = [
     "function withdraw(uint256 _value, address _addr) external",
@@ -212,6 +210,7 @@ async function doDeposit(wallet, amountWeth, times) {
                 continue;
             }
 
+            // Pastikan Allowance sebelum Deposit
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
             logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
@@ -220,7 +219,7 @@ async function doDeposit(wallet, amountWeth, times) {
             logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
         } catch (e) {
              const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-             logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Check ABI DEPOSIT or RPC stability.`);
+             logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Check contract address or token approval.`);
              continue;
         }
     }
