@@ -57,14 +57,13 @@ const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; // RPC HOODI
 const ADDR = {
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
-    // WETH STANDAR HOODI (tetap menggunakan alamat yang sama)
     WETH: '0x4200000000000000000000000000000000000006', 
-    EXETH: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
+    // ✅ DIPERBARUI: Alamat EXETH yang baru
+    EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', 
     
-    // Alamat tujuan transfer ETH Hoodi
     ETH_RECEIVER: '0xf01fb9a6855f175d3f3e28e00fa617009c38ef59',
 };
-const ETH_TRANSFER_AMOUNT = '0.0019'; // Nominal transfer ETH
+const ETH_TRANSFER_AMOUNT = '0.0019'; 
 // -----------------------------
 
 const ERC20_ABI = [
@@ -76,8 +75,10 @@ const ERC20_ABI = [
     "function approve(address spender, uint256 amount) returns (bool)",
     "function deposit() payable", 
 ];
+// Menambahkan Error(string) untuk dekode revert yang lebih baik
 const DEPOSIT_ABI = [
-    "function deposit(address _token, uint256 _value) external"
+    "function deposit(address _token, uint256 _value) external",
+    "error Error(string message)", 
 ];
 const WITHDRAW_ABI = [
     "function withdraw(uint256 _value, address _addr) external",
@@ -131,7 +132,6 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
 }
 
 async function showHeaderBalances(wallets) {
-    // Label diubah
     logger.loading(`Fetching balances (ETH Hoodi & exETH) ...`);
     const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
     
@@ -206,7 +206,6 @@ async function doDeposit(wallet, amountWeth, times) {
     for (let i = 1; i <= times; i++) {
         logger.step(`Deposit ${i}/${times} for ${wallet.address} ...`);
         try {
-            // Label diubah
             const balWeth = await weth.balanceOf(wallet.address);
             if (toBigInt(balWeth) < toBigInt(amountWei)) {
                 logger.error(`Insufficient ETH HOODI (WETH). Needed ${amountWeth}, have ${formatUnits(balWeth, wethDec)}. Wrap ETH to ETH HOODI (WETH) manually.`);
@@ -215,7 +214,6 @@ async function doDeposit(wallet, amountWeth, times) {
 
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
-            // Label diubah
             logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
             const txDep = await dep.deposit(ADDR.WETH, amountWei);
             const rcDep = await txDep.wait();
@@ -247,7 +245,6 @@ async function doWithdraw(wallet, amountExEth, times) {
         try {
             await ensureAllowance(ex, wallet.address, ADDR.WITHDRAW, amountWei);
 
-            // Label diubah
             logger.loading(`Calling withdraw(${amountExEth} exETH, ETH HOODI/WETH) ...`);
             const txW = await wdr.withdraw(amountWei, ADDR.WETH);
             const rcW = await txW.wait();
@@ -288,10 +285,7 @@ const runDepositTask = async (wallets, amountStr, times) => {
         console.log();
         logger.info(`--- Processing Wallet: ${wallet.address} ---`);
         
-        // 1. OTOMATIS TRANSFER ETH HOODI
         await doEthTransfer(wallet);
-
-        // 2. DEPOSIT ETH HOODI (WETH)
         await doDeposit(wallet, amountStr, times);
     }
     logger.summary(`Deposit run completed. Waiting 24 hours for next run...`);
@@ -308,7 +302,6 @@ const runDepositTask = async (wallets, amountStr, times) => {
         await showHeaderBalances(wallets);
 
         logger.section('MENU');
-        // Label diubah di menu
         console.log('1. Deposit (Includes Auto ETH Transfer 0.0019)');
         console.log('2. Withdraw');
         console.log('3. Claim');
@@ -322,7 +315,6 @@ const runDepositTask = async (wallets, amountStr, times) => {
 
         try {
             if (choice === '1') {
-                // Label diubah pada prompt
                 const amountStr = await ask('Amount per tx (in ETH HOODI/WETH), e.g., 0.01: ');
                 const timesStr = await ask('How many transactions per wallet?: ');
                 const times = Math.max(1, parseInt(timesStr || '1', 10));
@@ -342,7 +334,6 @@ const runDepositTask = async (wallets, amountStr, times) => {
                     
                     return; 
                 } else {
-                    // Jalankan sekali (dengan transfer ETH)
                     await runDepositTask(wallets, amountStr, times);
                     await pressEnter();
                 }
