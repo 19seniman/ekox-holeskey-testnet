@@ -55,8 +55,8 @@ const logger = {
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; // RPC HOODI
 
 const ADDR = {
-    // ⚠️ ALAMAT DEPOSIT INI KEMUNGKINAN SALAH ⚠️
-    DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
+    // ✅ DIPERBARUI: Alamat Deposit yang baru
+    DEPOSIT: '0x19536fad6eb831e8211b316177979161bbdb2c2b', 
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
     WETH: '0x4200000000000000000000000000000000000006', 
     EXETH: '0x4d38Bd670764c49Cce1E59EeaEBD05974760aCbD', 
@@ -211,6 +211,7 @@ async function doDeposit(wallet, amountWeth, times) {
                 continue;
             }
 
+            // Pastikan Allowance sebelum Deposit
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
             logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
