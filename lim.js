@@ -55,6 +55,7 @@ const logger = {
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io'; // RPC HOODI
 
 const ADDR = {
+    // ⚠️ ALAMAT DEPOSIT INI KEMUNGKINAN SALAH ⚠️
     DEPOSIT: '0x9e2ddb3386d5dce991a2595e8bc44756f864c6e3', 
     WITHDRAW: '0x1d150609ee9edcc6143506ba55a4faaedd562cd9', 
     WETH: '0x4200000000000000000000000000000000000006', 
@@ -74,7 +75,7 @@ const ERC20_ABI = [
     "function approve(address spender, uint256 amount) returns (bool)",
     "function deposit() payable", 
 ];
-// ✅ DIPERBARUI: ABI Deposit dikembalikan ke bentuk paling sederhana
+// ABI Deposit disederhanakan
 const DEPOSIT_ABI = [
     "function deposit(address _token, uint256 _value) external",
 ];
@@ -210,7 +211,6 @@ async function doDeposit(wallet, amountWeth, times) {
                 continue;
             }
 
-            // Pastikan Allowance sebelum Deposit
             await ensureAllowance(weth, wallet.address, ADDR.DEPOSIT, amountWei);
 
             logger.loading(`Calling deposit(ETH HOODI/WETH, ${amountWeth}) ...`);
@@ -218,8 +218,16 @@ async function doDeposit(wallet, amountWeth, times) {
             const rcDep = await txDep.wait();
             logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
         } catch (e) {
-             const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-             logger.critical(`Deposit ${i}/${times} FAILED: ${msg}. Check contract address or token approval.`);
+             let msg = e?.reason || e?.shortMessage || e?.message || String(e);
+             
+             // Tambahkan pemeriksaan untuk pesan revert yang tidak terdekode
+             if (msg.includes("could not decode result data") && e.data) {
+                 msg = `Execution Reverted. Data: ${e.data}. Coba ganti alamat DEPOSIT.`;
+             } else if (msg.includes("could not decode result data")) {
+                 msg = "Transaction Reverted without message. Coba ganti alamat DEPOSIT.";
+             }
+             
+             logger.critical(`Deposit ${i}/${times} FAILED: ${msg}.`);
              continue;
         }
     }
