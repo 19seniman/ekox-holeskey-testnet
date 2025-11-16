@@ -9,60 +9,43 @@ const formatUnits = (v, d) => (isV6 ? ethers.formatUnits(v, d) : ethers.utils.fo
 const formatEther = (v) => (isV6 ? ethers.formatEther(v) : ethers.utils.formatEther(v));
 
 const colors = {
-    reset: "\x1b[0m",
-    bright: "\x1b[1m",
-    dim: "\x1b[2m",
-    red: "\x1b[31m",
-    green: "\x1b[32m",
-    yellow: "\x1b[33m",
-    blue: "\x1b[34m",
-    magenta: "\x1b[35m",
-    cyan: "\x1b[36m",
-    white: "\x1b[37m",
-    bgRed: "\x1b[41m",
+  reset: "\x1b[0m",
+  cyan: "\x1b[36m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+  white: "\x1b[37m",
+  magenta: "\x1b[35m", 
+  blue: "\x1b[34m",    
+  gray: "\x1b[90m",    
+  bold: "\x1b[1m",
 };
 
 const logger = {
-    // [🔫] 
-    info: (msg) => console.log(`${colors.cyan}[🔫 LOADED] ${colors.reset}${msg}`),
-
-    // [⚠️]
-    warn: (msg) => console.log(`${colors.yellow}[⚡️ JAMMED] ${colors.reset}${msg}`),
-
-    // [☠️] 
-    error: (msg) => console.log(`${colors.red}${colors.bright}[☠️ FATAL HIT] ${colors.reset}${msg}`),
-
-    // [🎯] 
-    success: (msg) => console.log(`${colors.green}${colors.bright}[🎯 TARGET DOWN] ${colors.reset}${msg}`),
-
-    // [⟳] 
-    loading: (msg) => console.log(`${colors.magenta}[⟳ RELOADING] ${colors.reset}${msg}`),
-
-    // [>] 
-    step: (msg) => console.log(`${colors.blue}[⊕ AIMING] ${colors.bright}${msg}${colors.reset}`),
-
+    info: (msg) => console.log(`${colors.cyan}[i] ${msg}${colors.reset}`),
+    warn: (msg) => console.log(`${colors.yellow}[!] ${msg}${colors.reset}`),
+    error: (msg) => console.log(`${colors.red}[x] ${msg}${colors.reset}`),
+    success: (msg) => console.log(`${colors.green}[+] ${msg}${colors.reset}`),
+    loading: (msg) => console.log(`${colors.magenta}[*] ${msg}${colors.reset}`),
+    step: (msg) => console.log(`${colors.blue}[>] ${colors.bold}${msg}${colors.reset}`),
+    critical: (msg) => console.log(`${colors.red}${colors.bold}[FATAL] ${msg}${colors.reset}`),
+    summary: (msg) => console.log(`${colors.green}${colors.bold}[SUMMARY] ${msg}${colors.reset}`),
     banner: () => {
-        console.clear();
-        console.log(`${colors.green}${colors.dim}`);
-        console.log(`   ▄██████████████▄▐█▄▄▄▄█▌`);
-        console.log(`   ██████▌▄▌▄▐▐▌███▌▀▀██▀▀ `);
-        console.log(`   ██████▌▀▌▀▐▐▌███▌▀M4X▀  `);
-        console.log(`   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀        `);
-        console.log(`${colors.reset}`);
-        console.log(`${colors.green}   SYSTEM: ${colors.white}ONLINE ${colors.green}| MODE: ${colors.red}ASSAULT${colors.reset}`);
-        console.log(`${colors.green}   TARGET: ${colors.cyan}ETHEREUM NETWORK${colors.reset}`);
-        console.log(`${colors.dim}   -----------------------------------${colors.reset}`);
-    },
+        const border = `${colors.blue}${colors.bold}╔═════════════════════════════════════════╗${colors.reset}`;
+        const title = `${colors.blue}${colors.bold}║    🍉 19Seniman From Insider    🍉    ║${colors.reset}`;
+        const bottomBorder = `${colors.blue}${colors.bold}╚═════════════════════════════════════════╝${colors.reset}`;
 
-    // Section 
-    fire_line: (msg) => {
-        console.log(`\n${colors.red}>>====> ${colors.white}${colors.bold}${msg.toUpperCase()} ${colors.red}<====<<${colors.reset}\n`);
+        console.log(`\n${border}`);
+        console.log(title);
+        console.log(`${bottomBorder}\n`);
     },
-
-    // Countdown gaya bomb defusal
-    countdown: (seconds) => {
-        process.stdout.write(`\r${colors.yellow}[💣 DETONATION IN]: ${colors.red}${seconds}s ${colors.reset}   `);
-    }
+    section: (msg) => {
+        const line = '─'.repeat(40);
+        console.log(`\n${colors.gray}${line}${colors.reset}`);
+        if (msg) console.log(`${colors.white}${colors.bold} ${msg} ${colors.reset}`);
+        console.log(`${colors.gray}${line}${colors.reset}\n`);
+    },
+    countdown: (msg) => process.stdout.write(`\r${colors.blue}[⏰] ${msg}${colors.reset}`),
 };
 
 const RPC_URL = 'https://rpc.hoodi.ethpandaops.io';
@@ -108,7 +91,7 @@ function loadPrivateKeysFromEnv() {
     .filter(Boolean);
 
   if (keys.length === 0) {
-    logger.error("No PRIVATE_KEY_* found in .env");
+    logger.critical("No PRIVATE_KEY_* found in .env");
     process.exit(1);
   }
   return keys;
@@ -116,7 +99,7 @@ function loadPrivateKeysFromEnv() {
 
 function makeWallet(pk) {
   try { return new ethers.Wallet(pk, provider); }
-  catch (e) { logger.error(`Invalid private key: ${e.message}`); process.exit(1); }
+  catch (e) { logger.critical(`Invalid private key: ${e.message}`); process.exit(1); }
 }
 
 async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
@@ -131,12 +114,12 @@ async function ensureAllowance(tokenCtr, ownerAddr, spender, amount) {
 }
 
 async function showHeaderBalances(wallets) {
-  logger.loading(`Calibrating balances (ETH Hoodi & exETH) ...`);
+  logger.loading(`Fetching balances (ETH Hoodi & exETH) ...`);
   const ex = new ethers.Contract(ADDR.EXETH, ERC20_ABI, provider);
   const exDec = await ex.decimals().catch(() => 18);
   const exSym = await ex.symbol().catch(() => 'exETH');
 
-  logger.fire_line('WALLET AMMUNITION');
+  logger.section('WALLET BALANCES');
 
   for (const w of wallets) {
     const [ethBal, exBal] = await Promise.all([
@@ -161,14 +144,14 @@ async function doDeposit(wallet, amountEth, nodeOperatorId, times) {
 
     const balEth = await provider.getBalance(wallet.address);
     if (toBigInt(balEth) < toBigInt(amountWei)) {
-      logger.error(`Insufficient Ammo (ETH). Needed ${amountEth}, have ${formatEther(balEth)}`);
+      logger.error(`Insufficient ETH. Needed ${amountEth}, have ${formatEther(balEth)}`);
       continue;
     }
 
     logger.loading(`Calling depositETH(${nodeOperatorId}) with ${amountEth} ETH ...`);
     const txDep = await dep.depositETH(nodeOperatorId, { value: amountWei });
     const rcDep = await txDep.wait();
-    logger.success(`Deposit confirmed. Hash: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
+    logger.success(`Deposit confirmed. tx: ${isV6 ? rcDep.hash : txDep.hash || rcDep.transactionHash}`);
   }
 }
 
@@ -188,8 +171,8 @@ async function doWithdraw(wallet, amountExEth, times) {
     logger.loading(`Calling withdraw(${amountExEth} exETH, ETH) ...`);
     const txW = await wdr.withdraw(amountWei, ADDR.ETH_ADDR);
     const rcW = await txW.wait();
-    logger.success(`Withdraw submitted. Hash: ${isV6 ? rcW.hash : txW.hash || rcW.transactionHash}`);
-    logger.info(`Intel: Typical unlock to claim is ~25 minutes after withdraw.`);
+    logger.success(`Withdraw submitted. tx: ${isV6 ? rcW.hash : txW.hash || rcW.transactionHash}`);
+    logger.info(`Typical unlock to claim is ~25 minutes after withdraw.`);
   }
 }
 
@@ -197,7 +180,7 @@ async function doClaim(wallet, attempts) {
   const signer = wallet.connect(provider);
   const wdr = new ethers.Contract(ADDR.WITHDRAW, WITHDRAW_ABI, signer);
 
-  logger.info(`Proceeding claims operation`);
+  logger.info(`Proceeding claims`);
   const count = Math.max(1, parseInt(attempts || 1, 10));
 
   for (let idx = 0; idx < count; idx++) {
@@ -205,10 +188,10 @@ async function doClaim(wallet, attempts) {
     try {
       const tx = await wdr.claim(idx, wallet.address);
       const rc = await tx.wait();
-      logger.success(`Claimed index ${idx}. Hash: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
+      logger.success(`Claimed index ${idx}. tx: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
     } catch (e) {
       const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-      logger.warn(`Claim index ${idx} missed: ${msg}`);
+      logger.warn(`Claim index ${idx} failed: ${msg}`);
     }
   }
 }
@@ -217,12 +200,19 @@ async function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function formatCountdown(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 async function showCountdown(totalSeconds) {
   let remaining = totalSeconds;
   
   while (remaining > 0) {
-    // Menggunakan logger.countdown baru (Bomb Defusal Style)
-    logger.countdown(remaining);
+    // Menggunakan logger.countdown baru
+    logger.countdown(`Next run in: ${formatCountdown(remaining)}   `);
     await delay(1000);
     remaining--;
   }
@@ -231,7 +221,7 @@ async function showCountdown(totalSeconds) {
 }
 
 async function doDailyRun(wallets) {
-  logger.fire_line('MISSION CONFIGURATION');
+  logger.section('Cycle Run Configuration');
   
   const depositAmount = await ask('Amount per deposit tx (in ETH), e.g., 0.01: ');
   const withdrawAmount = await ask('Amount per withdraw tx (in exETH), e.g., 0.001: ');
@@ -240,55 +230,55 @@ async function doDailyRun(wallets) {
   const nodeOpId = 0; 
 
   console.log();
-  logger.success('Config locked in! Initiating run sequence...\n');
+  logger.success('Configuration saved! Starting run...\n');
   await delay(2000);
 
   for (let i = 1; i <= numCycles; i++) {
-    logger.fire_line(`ENGAGING CYCLE ${i} OF ${numCycles}`);
+    logger.section(`Running Cycle ${i} of ${numCycles}`);
     
     try {
-      logger.step(`Cycle ${i}/${numCycles}: Phase 1 - Deposits`);
+      logger.step(`Cycle ${i}/${numCycles}: Step 1 - Deposits`);
       for (const wallet of wallets) {
         console.log();
-        logger.info(`>>> Deposit Ops for ${wallet.address}`);
+        logger.info(`>>> Deposit for ${wallet.address}`);
         await doDeposit(wallet, depositAmount, nodeOpId, 1); 
       }
-      logger.fire_line('DEPOSIT PHASE COMPLETE');
+      logger.summary('All deposits for this cycle completed!\n');
       await delay(2000); 
 
-      logger.step(`Cycle ${i}/${numCycles}: Phase 2 - Withdrawals`);
+      logger.step(`Cycle ${i}/${numCycles}: Step 2 - Withdrawals`);
       for (const wallet of wallets) {
         console.log();
-        logger.info(`>>> Withdraw Ops for ${wallet.address}`);
+        logger.info(`>>> Withdraw for ${wallet.address}`);
         await doWithdraw(wallet, withdrawAmount, 1); 
       }
-      logger.fire_line('WITHDRAW PHASE COMPLETE');
+      logger.summary('All withdrawals for this cycle submitted!\n');
 
-      logger.info('Holding position for 1 minute (Withdrawal Unlock)...');
+      logger.info('Waiting 1 minute for withdrawal unlock...');
       await showCountdown(1 * 60); 
 
-      logger.step(`Cycle ${i}/${numCycles}: Phase 3 - Claims`);
+      logger.step(`Cycle ${i}/${numCycles}: Step 3 - Claims`);
       for (const wallet of wallets) {
         console.log();
-        logger.info(`>>> Claim Ops for ${wallet.address}`);
+        logger.info(`>>> Claim for ${wallet.address}`);
         await doClaim(wallet, 1); 
       }
       
-      logger.fire_line(`CYCLE ${i} MISSION ACCOMPLISHED`);
+      logger.summary(`Cycle ${i} of ${numCycles} completed!\n`);
 
       if (i < numCycles) {
-        logger.info(`Cooling down 5 seconds before next engagement...`);
+        logger.info(`Waiting 5 seconds before starting next cycle...`);
         await showCountdown(5);
       }
 
     } catch (e) {
       logger.error(`Error during cycle ${i}: ${e?.reason || e?.shortMessage || e?.message || String(e)}`);
-      logger.warn('Tactical Retreat. Skipping to next cycle in 10 seconds...\n');
+      logger.warn('Skipping to the next cycle (if any) in 10 seconds...\n');
       await showCountdown(10); 
     }
   } 
 
-  logger.fire_line('ALL MISSIONS COMPLETED');
+  logger.summary('All cycles completed!\n');
   await pressEnter(); 
 }
 
@@ -301,13 +291,13 @@ async function doDailyRun(wallets) {
   while (true) {
     await showHeaderBalances(wallets);
 
-    logger.fire_line('COMMAND CENTER');
-    console.log('1. Deposit Operation');
-    console.log('2. Withdraw Operation');
-    console.log('3. Claim Operation');
-    console.log('4. Daily Mission (Auto)'); 
-    console.log('5. Abort\n');
-    const choice = await ask('Select Protocol (1-5): ');
+    logger.section('MAIN MENU');
+    console.log('1. Deposit');
+    console.log('2. Withdraw');
+    console.log('3. Claim');
+    console.log('4. Daily Run'); 
+    console.log('5. Exit\n');
+    const choice = await ask('Choose option (1-5): ');
 
     if (choice === '5') {
       rl.close();
@@ -318,7 +308,7 @@ async function doDailyRun(wallets) {
       if (choice === '1') {
         const amountStr = await ask('Amount per tx (in ETH), e.g., 0.01: ');
         const nodeOpId  = 0;
-        const timesStr  = await ask('How many bursts per wallet?: ');
+        const timesStr  = await ask('How many transactions per wallet?: ');
         const times = Math.max(1, parseInt(timesStr || '1', 10));
 
         for (const wallet of wallets) {
@@ -330,7 +320,7 @@ async function doDailyRun(wallets) {
 
       } else if (choice === '2') {
         const amountStr = await ask('Amount per tx (in exETH), e.g., 0.001: ');
-        const timesStr  = await ask('How many bursts per wallet?: ');
+        const timesStr  = await ask('How many transactions per wallet?: ');
         const times = Math.max(1, parseInt(timesStr || '1', 10));
 
         for (const wallet of wallets) {
@@ -341,7 +331,7 @@ async function doDailyRun(wallets) {
         await pressEnter();
 
       } else if (choice === '3') {
-        const attemptsStr = await ask('How many claim attempts per wallet?: ');
+        const attemptsStr = await ask('How many claims to attempt per wallet?: ');
         const attempts = Math.max(1, parseInt(attemptsStr || '1', 10));
 
         for (const wallet of wallets) {
@@ -355,7 +345,7 @@ async function doDailyRun(wallets) {
         await doDailyRun(wallets);
 
       } else {
-        logger.error('Invalid Protocol Selected.');
+        logger.error('Invalid option.');
         await pressEnter();
       }
     } catch (e) {
@@ -368,7 +358,7 @@ async function doDailyRun(wallets) {
     console.log();
   }
 })().catch((e) => {
-  logger.error(e?.message || String(e));
+  logger.critical(e?.message || String(e));
   rl.close();
   process.exit(1);
 });
