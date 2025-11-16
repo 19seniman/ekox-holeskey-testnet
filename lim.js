@@ -15,9 +15,9 @@ const colors = {
   yellow: "\x1b[33m",
   red: "\x1b[31m",
   white: "\x1b[37m",
-  magenta: "\x1b[35m", 
-  blue: "\x1b[34m",    
-  gray: "\x1b[90m",    
+  magenta: "\x1b[35m",
+  blue: "\x1b[34m",
+  gray: "\x1b[90m",
   bold: "\x1b[1m",
 };
 
@@ -128,7 +128,7 @@ async function showHeaderBalances(wallets) {
     ]);
     logger.info(`Wallet ${w.address}`);
     console.log(`    ETH (Hoodi): ${formatEther(ethBal)}`);
-    console.log(`    ${exSym}:       ${formatUnits(exBal, exDec)}`);
+    console.log(`    ${exSym}:        ${formatUnits(exBal, exDec)}`);
   }
   console.log();
 }
@@ -191,7 +191,7 @@ async function doClaim(wallet, attempts) {
       logger.success(`Claimed index ${idx}. tx: ${isV6 ? rc.hash : tx.hash || rc.transactionHash}`);
     } catch (e) {
       const msg = e?.reason || e?.shortMessage || e?.message || String(e);
-      logger.warn(`Claim index ${idx} failed: ${msg}`);
+      logger.warn(`Claim index ${idx} failed (might be not ready or already claimed).`);
     }
   }
 }
@@ -211,7 +211,6 @@ async function showCountdown(totalSeconds) {
   let remaining = totalSeconds;
   
   while (remaining > 0) {
-    // Menggunakan logger.countdown baru
     logger.countdown(`Next run in: ${formatCountdown(remaining)}   `);
     await delay(1000);
     remaining--;
@@ -220,66 +219,59 @@ async function showCountdown(totalSeconds) {
   process.stdout.write('\n');
 }
 
-async function doDailyRun(wallets) {
-  logger.section('Cycle Run Configuration');
-  
-  const depositAmount = await ask('Amount per deposit tx (in ETH), e.g., 0.01: ');
-  const withdrawAmount = await ask('Amount per withdraw tx (in exETH), e.g., 0.001: ');
-  const numCycles = Math.max(1, parseInt(await ask('How many cycles to run (1 cycle = 1 deposit, 1 withdraw, 1 claim)?: ') || '1', 10));
-  
-  const nodeOpId = 0; 
-
-  console.log();
-  logger.success('Configuration saved! Starting run...\n');
-  await delay(2000);
-
-  for (let i = 1; i <= numCycles; i++) {
-    logger.section(`Running Cycle ${i} of ${numCycles}`);
+async function runAutoLoop(wallets) {
+    logger.section('Auto Loop Configuration (Runs every 24h)');
     
-    try {
-      logger.step(`Cycle ${i}/${numCycles}: Step 1 - Deposits`);
-      for (const wallet of wallets) {
-        console.log();
-        logger.info(`>>> Deposit for ${wallet.address}`);
-        await doDeposit(wallet, depositAmount, nodeOpId, 1); 
-      }
-      logger.summary('All deposits for this cycle completed!\n');
-      await delay(2000); 
+    const depositAmount = await ask('Amount per deposit tx (in ETH), e.g., 0.01: ');
+    const withdrawAmount = await ask('Amount per withdraw tx (in exETH), e.g., 0.001: ');
+    const nodeOpId = 0; 
 
-      logger.step(`Cycle ${i}/${numCycles}: Step 2 - Withdrawals`);
-      for (const wallet of wallets) {
-        console.log();
-        logger.info(`>>> Withdraw for ${wallet.address}`);
-        await doWithdraw(wallet, withdrawAmount, 1); 
-      }
-      logger.summary('All withdrawals for this cycle submitted!\n');
+    console.log();
+    logger.success('Auto loop configured! Starting endless cycle...\n');
 
-      logger.info('Waiting 1 minute for withdrawal unlock...');
-      await showCountdown(1 * 60); 
+    while (true) {
+        logger.section(`STARTING NEW 24H CYCLE`);
+        
+        // --- 1. DEPOSIT ---
+        logger.step(`Step 1: Auto Deposit`);
+        for (const wallet of wallets) {
+            console.log();
+            logger.info(`>>> Deposit for ${wallet.address}`);
+            try {
+                await doDeposit(wallet, depositAmount, nodeOpId, 1);
+            } catch (e) { logger.error(`Deposit failed: ${e.message}`); }
+        }
+        
+        await delay(5000);
 
-      logger.step(`Cycle ${i}/${numCycles}: Step 3 - Claims`);
-      for (const wallet of wallets) {
-        console.log();
-        logger.info(`>>> Claim for ${wallet.address}`);
-        await doClaim(wallet, 1); 
-      }
-      
-      logger.summary(`Cycle ${i} of ${numCycles} completed!\n`);
+        // --- 2. WITHDRAW ---
+        logger.step(`Step 2: Auto Withdraw`);
+        for (const wallet of wallets) {
+            console.log();
+            logger.info(`>>> Withdraw for ${wallet.address}`);
+            try {
+                await doWithdraw(wallet, withdrawAmount, 1);
+            } catch (e) { logger.error(`Withdraw failed: ${e.message}`); }
+        }
 
-      if (i < numCycles) {
-        logger.info(`Waiting 5 seconds before starting next cycle...`);
-        await showCountdown(5);
-      }
+        logger.info('Waiting 1 minute before attempting claims (optional wait)...');
+        await showCountdown(60);
 
-    } catch (e) {
-      logger.error(`Error during cycle ${i}: ${e?.reason || e?.shortMessage || e?.message || String(e)}`);
-      logger.warn('Skipping to the next cycle (if any) in 10 seconds...\n');
-      await showCountdown(10); 
+        // --- 3. CLAIM ---
+        logger.step(`Step 3: Auto Claim`);
+        for (const wallet of wallets) {
+            console.log();
+            logger.info(`>>> Claim for ${wallet.address}`);
+            try {
+                await doClaim(wallet, 1);
+            } catch (e) { logger.error(`Claim failed: ${e.message}`); }
+        }
+
+        logger.summary('Cycle completed. Sleeping for 24 HOURS.');
+        
+        // 24 Jam dalam detik = 24 * 60 * 60 = 86400
+        await showCountdown(86400);
     }
-  } 
-
-  logger.summary('All cycles completed!\n');
-  await pressEnter(); 
 }
 
 (async () => {
@@ -292,17 +284,13 @@ async function doDailyRun(wallets) {
     await showHeaderBalances(wallets);
 
     logger.section('MAIN MENU');
-    console.log('1. Deposit');
-    console.log('2. Withdraw');
-    console.log('3. Claim');
-    console.log('4. Daily Run'); 
-    console.log('5. Exit\n');
-    const choice = await ask('Choose option (1-5): ');
-
-    if (choice === '5') {
-      rl.close();
-      process.exit(0);
-    }
+    console.log('1. Deposit (Manual)');
+    console.log('2. Withdraw (Manual)');
+    console.log('3. Claim (Manual)');
+    console.log('4. START AUTO LOOP (Every 24 Hours)'); // Menu baru
+    console.log('\n');
+    
+    const choice = await ask('Choose option (1-4): ');
 
     try {
       if (choice === '1') {
@@ -342,8 +330,8 @@ async function doDailyRun(wallets) {
         await pressEnter();
 
       } else if (choice === '4') {
-        await doDailyRun(wallets);
-
+        // Masuk ke mode loop tak terbatas
+        await runAutoLoop(wallets);
       } else {
         logger.error('Invalid option.');
         await pressEnter();
