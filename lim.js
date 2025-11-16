@@ -8,7 +8,6 @@ const parseUnits  = (v, d) => (isV6 ? ethers.parseUnits(v, d) : ethers.utils.par
 const formatUnits = (v, d) => (isV6 ? ethers.formatUnits(v, d) : ethers.utils.formatUnits(v, d));
 const formatEther = (v) => (isV6 ? ethers.formatEther(v) : ethers.utils.formatEther(v));
 
-// --- TACTICAL LOGGER CONFIG ---
 const colors = {
     reset: "\x1b[0m",
     bright: "\x1b[1m",
@@ -24,25 +23,24 @@ const colors = {
 };
 
 const logger = {
-    // [🔫] Menembak informasi biasa
+    // [🔫] 
     info: (msg) => console.log(`${colors.cyan}[🔫 LOADED] ${colors.reset}${msg}`),
 
-    // [⚠️] Peringatan (Jamming)
+    // [⚠️]
     warn: (msg) => console.log(`${colors.yellow}[⚡️ JAMMED] ${colors.reset}${msg}`),
 
-    // [☠️] Error fatal (Misfire/Dead)
+    // [☠️] 
     error: (msg) => console.log(`${colors.red}${colors.bright}[☠️ FATAL HIT] ${colors.reset}${msg}`),
 
-    // [🎯] Sukses (Headshot/Target Down)
+    // [🎯] 
     success: (msg) => console.log(`${colors.green}${colors.bright}[🎯 TARGET DOWN] ${colors.reset}${msg}`),
 
-    // [⟳] Loading (Reloading Magazine)
+    // [⟳] 
     loading: (msg) => console.log(`${colors.magenta}[⟳ RELOADING] ${colors.reset}${msg}`),
 
-    // [>] Langkah proses (Aiming)
+    // [>] 
     step: (msg) => console.log(`${colors.blue}[⊕ AIMING] ${colors.bright}${msg}${colors.reset}`),
 
-    // Banner ASCII Art Pistol & Hacker
     banner: () => {
         console.clear();
         console.log(`${colors.green}${colors.dim}`);
@@ -56,7 +54,7 @@ const logger = {
         console.log(`${colors.dim}   -----------------------------------${colors.reset}`);
     },
 
-    // Section pemisah dengan gaya taktis
+    // Section 
     fire_line: (msg) => {
         console.log(`\n${colors.red}>>====> ${colors.white}${colors.bold}${msg.toUpperCase()} ${colors.red}<====<<${colors.reset}\n`);
     },
