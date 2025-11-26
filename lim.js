@@ -128,7 +128,7 @@ async function showHeaderBalances(wallets) {
     ]);
     logger.info(`Wallet ${w.address}`);
     console.log(`    ETH (Hoodi): ${formatEther(ethBal)}`);
-    console.log(`    ${exSym}:        ${formatUnits(exBal, exDec)}`);
+    console.log(`    ${exSym}:         ${formatUnits(exBal, exDec)}`);
   }
   console.log();
 }
@@ -209,13 +209,13 @@ function formatCountdown(seconds) {
 
 async function showCountdown(totalSeconds) {
   let remaining = totalSeconds;
-  
+   
   while (remaining > 0) {
-    logger.countdown(`Next run in: ${formatCountdown(remaining)}   `);
+    logger.countdown(`Next run in: ${formatCountdown(remaining)}    `);
     await delay(1000);
     remaining--;
   }
-  
+   
   process.stdout.write('\n');
 }
 
@@ -284,27 +284,41 @@ async function runAutoLoop(wallets) {
     await showHeaderBalances(wallets);
 
     logger.section('MAIN MENU');
-    console.log('1. Deposit (Manual)');
+    console.log('1. Auto Deposit (24h Loop)'); // UPDATED LABEL
     console.log('2. Withdraw (Manual)');
     console.log('3. Claim (Manual)');
-    console.log('4. START AUTO LOOP (Every 24 Hours)'); // Menu baru
+    console.log('4. FULL AUTO LOOP (Deposit+Withdraw+Claim 24h)');
     console.log('\n');
     
     const choice = await ask('Choose option (1-4): ');
 
     try {
       if (choice === '1') {
+        // --- UPDATED SECTION START ---
+        logger.section('Auto Deposit Configuration (Runs every 24h)');
         const amountStr = await ask('Amount per tx (in ETH), e.g., 0.01: ');
         const nodeOpId  = 0;
-        const timesStr  = await ask('How many transactions per wallet?: ');
+        const timesStr  = await ask('How many transactions per wallet per cycle?: ');
         const times = Math.max(1, parseInt(timesStr || '1', 10));
 
-        for (const wallet of wallets) {
-          console.log();
-          logger.info(`>>> Deposit for ${wallet.address}`);
-          await doDeposit(wallet, amountStr, nodeOpId, times);
+        console.log();
+        logger.success('Auto Deposit configured! Starting endless cycle...\n');
+
+        while (true) {
+            logger.section(`STARTING NEW DEPOSIT CYCLE`);
+            for (const wallet of wallets) {
+                console.log();
+                logger.info(`>>> Deposit for ${wallet.address}`);
+                try {
+                    await doDeposit(wallet, amountStr, nodeOpId, times);
+                } catch (e) { logger.error(`Deposit failed: ${e.message}`); }
+            }
+            
+            logger.summary('Deposit cycle completed. Sleeping for 24 HOURS.');
+            // 24 Jam dalam detik = 86400
+            await showCountdown(86400);
         }
-        await pressEnter();
+        // --- UPDATED SECTION END ---
 
       } else if (choice === '2') {
         const amountStr = await ask('Amount per tx (in exETH), e.g., 0.001: ');
@@ -330,7 +344,6 @@ async function runAutoLoop(wallets) {
         await pressEnter();
 
       } else if (choice === '4') {
-        // Masuk ke mode loop tak terbatas
         await runAutoLoop(wallets);
       } else {
         logger.error('Invalid option.');
